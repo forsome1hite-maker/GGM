@@ -250,16 +250,37 @@
 
     .list-header {
       display: flex;
-      align-items: center;
-      justify-content: space-between;
-      padding: 16px 20px;
+      flex-direction: column;
+      gap: 10px;
+      padding: 14px 20px;
       border-bottom: 1px solid rgba(255,255,255,0.07);
       background: rgba(255,255,255,0.03);
+    }
+
+    .list-header-row {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
     }
 
     .list-header h2 { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--sub); }
 
     .filter-tabs { display: flex; gap: 6px; }
+
+    .sort-row {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+
+    .sort-label-text {
+      font-size: 0.7rem;
+      font-weight: 700;
+      color: var(--sub);
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+      white-space: nowrap;
+    }
 
     .tab {
       padding: 5px 14px;
@@ -379,9 +400,74 @@
       .form-grid .full { grid-column: 1; }
       h1 { font-size: 1.55rem; }
     }
+
+    /* ── Speech bubble ── */
+    @keyframes bubble-in {
+      from { opacity: 0; transform: translateY(-50%) scale(0.7); }
+      to   { opacity: 1; transform: translateY(-50%) scale(1); }
+    }
+    @keyframes bob {
+      0%, 100% { transform: translateY(-50%) translateY(0px); }
+      50%       { transform: translateY(-50%) translateY(-7px); }
+    }
+
+    .speech-bubble {
+      position: fixed;
+      left: 28px;
+      top: 50%;
+      transform: translateY(-50%);
+      display: none;
+      flex-direction: column;
+      align-items: center;
+      gap: 6px;
+      z-index: 20;
+      animation: bubble-in 0.4s cubic-bezier(.22,.68,0,1.3) forwards,
+                 bob 3s ease-in-out 0.4s infinite;
+    }
+
+    .sb-char {
+      font-size: 2.2rem;
+      filter: drop-shadow(0 4px 8px rgba(0,0,0,0.4));
+    }
+
+    .sb-box {
+      position: relative;
+      background: #fff;
+      color: #1e1b4b;
+      padding: 11px 16px;
+      border-radius: 18px;
+      font-size: 0.82rem;
+      font-weight: 800;
+      white-space: nowrap;
+      letter-spacing: -0.01em;
+      box-shadow:
+        0 6px 24px rgba(0,0,0,0.35),
+        0 1px 0 rgba(255,255,255,0.9) inset;
+    }
+
+    /* tail pointing right toward the content */
+    .sb-box::after {
+      content: '';
+      position: absolute;
+      right: -13px;
+      top: 50%;
+      transform: translateY(-50%);
+      border: 8px solid transparent;
+      border-left: 14px solid #fff;
+    }
+
+    @media (max-width: 480px) {
+      .speech-bubble { display: none !important; }
+    }
   </style>
 </head>
 <body>
+
+<!-- speech bubble -->
+<div class="speech-bubble" id="speech-bubble">
+  <div class="sb-box">정말 수고하셨어요! 🎉</div>
+  <span class="sb-char">🧑‍💼</span>
+</div>
 
 <!-- background orbs -->
 <div class="orb orb-1"></div>
@@ -453,11 +539,21 @@
   <!-- List -->
   <div class="list-card panel">
     <div class="list-header">
-      <h2>✦ 내역</h2>
-      <div class="filter-tabs">
-        <button class="tab active" onclick="setFilter('all', this)">전체</button>
-        <button class="tab" onclick="setFilter('income', this)">수입</button>
-        <button class="tab" onclick="setFilter('expense', this)">지출</button>
+      <div class="list-header-row">
+        <h2>✦ 내역</h2>
+        <div class="filter-tabs">
+          <button class="tab active" onclick="setFilter('all', this)">전체</button>
+          <button class="tab" onclick="setFilter('income', this)">수입</button>
+          <button class="tab" onclick="setFilter('expense', this)">지출</button>
+        </div>
+      </div>
+      <div class="sort-row">
+        <span class="sort-label-text">정렬</span>
+        <div class="filter-tabs">
+          <button class="tab sort-btn active" data-key="date" onclick="setSort('date')">날짜 ↓</button>
+          <button class="tab sort-btn" data-key="amount" onclick="setSort('amount')">금액</button>
+          <button class="tab sort-btn" data-key="title" onclick="setSort('title')">이름</button>
+        </div>
       </div>
     </div>
     <div id="entry-list"></div>
@@ -472,6 +568,8 @@
   let entries = [];
   let filterType = 'all';
   let showAllMonths = false;
+  let sortKey = 'date';
+  let sortDir = 'desc';
 
   const fmt = n => '₩' + Number(n).toLocaleString('ko-KR');
 
@@ -509,7 +607,30 @@
       const monthOk = showAllMonths || e.date.startsWith(currentMonth());
       const typeOk  = filterType === 'all' || e.type === filterType;
       return monthOk && typeOk;
-    }).sort((a,b) => b.date.localeCompare(a.date));
+    }).sort((a, b) => {
+      let va, vb;
+      if (sortKey === 'amount') { va = Number(a.amount); vb = Number(b.amount); }
+      else if (sortKey === 'title') { va = a.title; vb = b.title; }
+      else { va = a.date; vb = b.date; }
+      const cmp = va < vb ? -1 : va > vb ? 1 : 0;
+      return sortDir === 'desc' ? -cmp : cmp;
+    });
+  }
+
+  function setSort(key) {
+    if (sortKey === key) {
+      sortDir = sortDir === 'desc' ? 'asc' : 'desc';
+    } else {
+      sortKey = key;
+      sortDir = 'desc';
+    }
+    const LABELS = { date: '날짜', amount: '금액', title: '이름' };
+    document.querySelectorAll('.sort-btn').forEach(btn => {
+      const isActive = btn.dataset.key === sortKey;
+      btn.classList.toggle('active', isActive);
+      btn.textContent = LABELS[btn.dataset.key] + (isActive ? (sortDir === 'desc' ? ' ↓' : ' ↑') : '');
+    });
+    render();
   }
 
   function setLoading(on) {
@@ -524,6 +645,19 @@
 
     document.getElementById('total-income').textContent  = fmt(income);
     document.getElementById('total-expense').textContent = fmt(expense);
+
+    const bubble = document.getElementById('speech-bubble');
+    const hasIncome = list.some(e => e.type === 'income');
+    if (hasIncome) {
+      if (bubble.style.display !== 'flex') {
+        bubble.style.display = 'flex';
+        bubble.style.animation = 'none';
+        bubble.offsetHeight; // reflow → animation restarts
+        bubble.style.animation = '';
+      }
+    } else {
+      bubble.style.display = 'none';
+    }
 
     const bal  = document.getElementById('total-balance');
     const diff = income - expense;
