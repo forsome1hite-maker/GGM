@@ -1,0 +1,608 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>가계부</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+    :root {
+      --income:  #4ade80;
+      --expense: #f87171;
+      --accent:  #818cf8;
+      --text:    #f1f5f9;
+      --sub:     #94a3b8;
+      --glass:        rgba(255,255,255,0.07);
+      --glass-border: rgba(255,255,255,0.14);
+    }
+
+    body {
+      font-family: 'Segoe UI', 'Apple SD Gothic Neo', sans-serif;
+      background: linear-gradient(135deg, #0f0c29 0%, #302b63 52%, #1a1040 100%);
+      color: var(--text);
+      min-height: 100vh;
+      padding: 32px 16px 72px;
+      overflow-x: hidden;
+    }
+
+    /* background glow orbs */
+    .orb {
+      position: fixed;
+      border-radius: 50%;
+      filter: blur(90px);
+      opacity: 0.28;
+      pointer-events: none;
+      z-index: 0;
+    }
+    .orb-1 { width: 520px; height: 520px; background: radial-gradient(circle, #6366f1, transparent 70%); top: -140px; left: -120px; }
+    .orb-2 { width: 420px; height: 420px; background: radial-gradient(circle, #ec4899, transparent 70%); bottom: -80px; right: -80px; }
+    .orb-3 { width: 300px; height: 300px; background: radial-gradient(circle, #06b6d4, transparent 70%); top: 40%; left: 55%; }
+
+    .container { max-width: 720px; margin: 0 auto; position: relative; z-index: 1; }
+
+    /* ── Title ── */
+    h1 {
+      text-align: center;
+      font-size: 2.1rem;
+      font-weight: 900;
+      margin-bottom: 30px;
+      background: linear-gradient(135deg, #a78bfa 0%, #818cf8 40%, #38bdf8 100%);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+      filter: drop-shadow(0 0 24px rgba(129,140,248,0.5));
+      letter-spacing: -0.02em;
+    }
+
+    /* ── Summary cards ── */
+    .summary {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 14px;
+      margin-bottom: 18px;
+    }
+
+    .s-card {
+      position: relative;
+      padding: 22px 16px 20px;
+      text-align: center;
+      border-radius: 20px;
+      cursor: default;
+      overflow: hidden;
+      transition: transform 0.2s cubic-bezier(.22,.68,0,1.2), box-shadow 0.2s;
+    }
+
+    /* shine layer */
+    .s-card::before {
+      content: '';
+      position: absolute;
+      inset: 0;
+      border-radius: inherit;
+      background: linear-gradient(140deg, rgba(255,255,255,0.18) 0%, rgba(255,255,255,0) 55%);
+      pointer-events: none;
+    }
+
+    .s-card.income {
+      background: linear-gradient(135deg, rgba(74,222,128,0.2) 0%, rgba(16,185,129,0.06) 100%);
+      border: 1px solid rgba(74,222,128,0.32);
+      box-shadow:
+        0 2px 0 rgba(255,255,255,0.08) inset,
+        0 -4px 0 rgba(0,0,0,0.35) inset,
+        0 10px 40px rgba(74,222,128,0.18),
+        0 4px 12px rgba(0,0,0,0.35);
+    }
+    .s-card.expense {
+      background: linear-gradient(135deg, rgba(248,113,113,0.2) 0%, rgba(239,68,68,0.06) 100%);
+      border: 1px solid rgba(248,113,113,0.32);
+      box-shadow:
+        0 2px 0 rgba(255,255,255,0.08) inset,
+        0 -4px 0 rgba(0,0,0,0.35) inset,
+        0 10px 40px rgba(248,113,113,0.18),
+        0 4px 12px rgba(0,0,0,0.35);
+    }
+    .s-card.balance {
+      background: linear-gradient(135deg, rgba(129,140,248,0.24) 0%, rgba(99,102,241,0.08) 100%);
+      border: 1px solid rgba(129,140,248,0.36);
+      box-shadow:
+        0 2px 0 rgba(255,255,255,0.12) inset,
+        0 -4px 0 rgba(0,0,0,0.35) inset,
+        0 10px 40px rgba(129,140,248,0.22),
+        0 4px 12px rgba(0,0,0,0.35);
+    }
+
+    .s-card:hover { transform: translateY(-6px) scale(1.03); }
+    .s-card.income:hover  { box-shadow: 0 20px 50px rgba(74,222,128,0.3),  0 6px 20px rgba(0,0,0,0.4), 0 2px 0 rgba(255,255,255,0.1) inset; }
+    .s-card.expense:hover { box-shadow: 0 20px 50px rgba(248,113,113,0.3), 0 6px 20px rgba(0,0,0,0.4), 0 2px 0 rgba(255,255,255,0.1) inset; }
+    .s-card.balance:hover { box-shadow: 0 20px 50px rgba(129,140,248,0.35),0 6px 20px rgba(0,0,0,0.4), 0 2px 0 rgba(255,255,255,0.12) inset; }
+
+    .s-card .s-icon { font-size: 1.7rem; margin-bottom: 8px; filter: drop-shadow(0 3px 6px rgba(0,0,0,0.4)); display: block; }
+    .s-card .label  { font-size: 0.72rem; color: var(--sub); font-weight: 700; letter-spacing: 0.09em; text-transform: uppercase; margin-bottom: 6px; }
+    .s-card .amount { font-size: 1.25rem; font-weight: 800; }
+
+    .s-card.income  .amount { color: var(--income); text-shadow: 0 0 16px rgba(74,222,128,0.6); }
+    .s-card.expense .amount { color: var(--expense); text-shadow: 0 0 16px rgba(248,113,113,0.6); }
+    .s-card.balance .amount { color: var(--accent);  text-shadow: 0 0 16px rgba(129,140,248,0.6); }
+
+    /* ── Glass panel ── */
+    .panel {
+      background: var(--glass);
+      backdrop-filter: blur(20px);
+      -webkit-backdrop-filter: blur(20px);
+      border: 1px solid var(--glass-border);
+      border-radius: 18px;
+      box-shadow:
+        0 2px 0 rgba(255,255,255,0.08) inset,
+        0 -3px 0 rgba(0,0,0,0.25) inset,
+        0 12px 40px rgba(0,0,0,0.3);
+    }
+
+    /* ── Month bar ── */
+    .month-bar {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      margin-bottom: 16px;
+      padding: 12px 18px;
+    }
+
+    .month-bar label { font-size: 0.8rem; color: var(--sub); white-space: nowrap; font-weight: 600; letter-spacing: 0.04em; }
+
+    .month-bar input[type="month"] {
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 10px;
+      padding: 8px 12px;
+      font-size: 0.88rem;
+      color: var(--text);
+      flex: 1;
+      background: rgba(255,255,255,0.05);
+      transition: border 0.2s, box-shadow 0.2s;
+    }
+    .month-bar input[type="month"]:focus {
+      outline: none;
+      border-color: rgba(129,140,248,0.6);
+      box-shadow: 0 0 0 3px rgba(129,140,248,0.18);
+    }
+
+    /* ── Form ── */
+    .form-card { padding: 22px; margin-bottom: 16px; }
+
+    .form-card h2 {
+      font-size: 0.75rem;
+      font-weight: 700;
+      letter-spacing: 0.1em;
+      text-transform: uppercase;
+      color: var(--sub);
+      margin-bottom: 16px;
+    }
+
+    .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+    .form-grid .full { grid-column: 1 / -1; }
+
+    .form-grid input,
+    .form-grid select,
+    .form-grid textarea {
+      width: 100%;
+      border: 1px solid rgba(255,255,255,0.12);
+      border-radius: 10px;
+      padding: 10px 14px;
+      font-size: 0.88rem;
+      color: var(--text);
+      background: rgba(255,255,255,0.06);
+      transition: border 0.2s, box-shadow 0.2s, background 0.2s;
+      box-shadow: 0 1px 0 rgba(255,255,255,0.06) inset, 0 2px 6px rgba(0,0,0,0.2);
+    }
+
+    .form-grid input::placeholder,
+    .form-grid textarea::placeholder { color: rgba(148,163,184,0.5); }
+
+    .form-grid select option { background: #1e1b4b; color: var(--text); }
+
+    .form-grid input:focus,
+    .form-grid select:focus,
+    .form-grid textarea:focus {
+      outline: none;
+      border-color: rgba(129,140,248,0.55);
+      background: rgba(129,140,248,0.09);
+      box-shadow: 0 0 0 3px rgba(129,140,248,0.16), 0 1px 0 rgba(255,255,255,0.06) inset;
+    }
+
+    .form-grid textarea { resize: vertical; min-height: 62px; }
+
+    /* 3-D push button */
+    .btn-add {
+      width: 100%;
+      padding: 13px;
+      background: linear-gradient(135deg, #6366f1 0%, #818cf8 100%);
+      color: #fff;
+      border: none;
+      border-radius: 11px;
+      font-size: 0.95rem;
+      font-weight: 700;
+      cursor: pointer;
+      margin-top: 12px;
+      letter-spacing: 0.03em;
+      box-shadow:
+        0 6px 0 #3730a3,
+        0 8px 24px rgba(99,102,241,0.4),
+        0 1px 0 rgba(255,255,255,0.25) inset;
+      transition: transform 0.1s, box-shadow 0.1s;
+    }
+    .btn-add:hover {
+      background: linear-gradient(135deg, #7c3aed, #6366f1);
+      transform: translateY(-2px);
+      box-shadow:
+        0 8px 0 #3730a3,
+        0 12px 30px rgba(99,102,241,0.5),
+        0 1px 0 rgba(255,255,255,0.25) inset;
+    }
+    .btn-add:active {
+      transform: translateY(5px);
+      box-shadow:
+        0 1px 0 #3730a3,
+        0 3px 12px rgba(99,102,241,0.3),
+        0 1px 0 rgba(255,255,255,0.15) inset;
+    }
+
+    /* ── List ── */
+    .list-card { overflow: hidden; }
+
+    .list-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 16px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.07);
+      background: rgba(255,255,255,0.03);
+    }
+
+    .list-header h2 { font-size: 0.75rem; font-weight: 700; letter-spacing: 0.1em; text-transform: uppercase; color: var(--sub); }
+
+    .filter-tabs { display: flex; gap: 6px; }
+
+    .tab {
+      padding: 5px 14px;
+      border-radius: 20px;
+      font-size: 0.74rem;
+      font-weight: 700;
+      cursor: pointer;
+      border: 1px solid rgba(255,255,255,0.14);
+      background: transparent;
+      color: var(--sub);
+      transition: all 0.18s;
+      letter-spacing: 0.02em;
+    }
+    .tab:hover { background: rgba(255,255,255,0.08); color: var(--text); }
+    .tab.active {
+      background: linear-gradient(135deg, #6366f1, #818cf8);
+      color: #fff;
+      border-color: transparent;
+      box-shadow: 0 3px 12px rgba(99,102,241,0.45), 0 1px 0 rgba(255,255,255,0.2) inset;
+    }
+
+    /* Entry row */
+    .entry {
+      display: flex;
+      align-items: center;
+      padding: 14px 20px;
+      border-bottom: 1px solid rgba(255,255,255,0.05);
+      gap: 14px;
+      position: relative;
+      transition: background 0.15s, transform 0.15s;
+    }
+
+    .entry::before {
+      content: '';
+      position: absolute;
+      left: 0; top: 22%; bottom: 22%;
+      width: 3px;
+      border-radius: 0 3px 3px 0;
+      opacity: 0;
+      transition: opacity 0.2s;
+    }
+    .entry.income-row::before  { background: var(--income); box-shadow: 0 0 8px rgba(74,222,128,0.6); }
+    .entry.expense-row::before { background: var(--expense); box-shadow: 0 0 8px rgba(248,113,113,0.6); }
+
+    .entry:last-child { border-bottom: none; }
+    .entry:hover { background: rgba(255,255,255,0.05); transform: translateX(6px); }
+    .entry:hover::before { opacity: 1; }
+
+    .entry-icon {
+      width: 44px; height: 44px;
+      border-radius: 13px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 1.25rem;
+      flex-shrink: 0;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.35), 0 1px 0 rgba(255,255,255,0.1) inset;
+    }
+
+    .entry-icon.income  {
+      background: linear-gradient(135deg, rgba(74,222,128,0.28), rgba(16,185,129,0.1));
+      border: 1px solid rgba(74,222,128,0.3);
+    }
+    .entry-icon.expense {
+      background: linear-gradient(135deg, rgba(248,113,113,0.28), rgba(239,68,68,0.1));
+      border: 1px solid rgba(248,113,113,0.3);
+    }
+
+    .entry-info { flex: 1; min-width: 0; }
+    .entry-info .title {
+      font-size: 0.9rem;
+      font-weight: 600;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .entry-info .meta { font-size: 0.73rem; color: var(--sub); margin-top: 3px; }
+
+    .entry-amount {
+      font-size: 0.95rem;
+      font-weight: 800;
+      white-space: nowrap;
+    }
+    .entry-amount.income  { color: var(--income); text-shadow: 0 0 10px rgba(74,222,128,0.45); }
+    .entry-amount.expense { color: var(--expense); text-shadow: 0 0 10px rgba(248,113,113,0.45); }
+
+    .btn-del {
+      background: none;
+      border: none;
+      color: rgba(255,255,255,0.18);
+      font-size: 0.85rem;
+      cursor: pointer;
+      padding: 5px 8px;
+      border-radius: 7px;
+      transition: all 0.15s;
+    }
+    .btn-del:hover { color: var(--expense); background: rgba(248,113,113,0.12); }
+
+    .empty { text-align: center; padding: 52px 20px; color: var(--sub); font-size: 0.88rem; }
+
+    .chip {
+      display: inline-block;
+      padding: 1px 8px;
+      border-radius: 10px;
+      font-size: 0.68rem;
+      font-weight: 600;
+      margin-left: 6px;
+      background: rgba(129,140,248,0.18);
+      color: var(--accent);
+      border: 1px solid rgba(129,140,248,0.24);
+      vertical-align: middle;
+    }
+
+    @media (max-width: 480px) {
+      .summary { grid-template-columns: 1fr; }
+      .form-grid { grid-template-columns: 1fr; }
+      .form-grid .full { grid-column: 1; }
+      h1 { font-size: 1.55rem; }
+    }
+  </style>
+</head>
+<body>
+
+<!-- background orbs -->
+<div class="orb orb-1"></div>
+<div class="orb orb-2"></div>
+<div class="orb orb-3"></div>
+
+<div class="container">
+  <h1>💰 가계부</h1>
+
+  <!-- Summary -->
+  <div class="summary">
+    <div class="s-card income">
+      <span class="s-icon">📈</span>
+      <div class="label">수입</div>
+      <div class="amount" id="total-income">₩0</div>
+    </div>
+    <div class="s-card expense">
+      <span class="s-icon">📉</span>
+      <div class="label">지출</div>
+      <div class="amount" id="total-expense">₩0</div>
+    </div>
+    <div class="s-card balance">
+      <span class="s-icon">💎</span>
+      <div class="label">잔액</div>
+      <div class="amount" id="total-balance">₩0</div>
+    </div>
+  </div>
+
+  <!-- Month filter -->
+  <div class="month-bar panel">
+    <label>기간</label>
+    <input type="month" id="month-filter" />
+    <button class="tab" id="btn-all-months" onclick="toggleAllMonths()">전체 보기</button>
+  </div>
+
+  <!-- Form -->
+  <div class="form-card panel">
+    <h2>✦ 내역 추가</h2>
+    <div class="form-grid">
+      <select id="type">
+        <option value="income">💵 수입</option>
+        <option value="expense">💸 지출</option>
+      </select>
+      <input type="date" id="date" />
+      <input type="text" id="title" placeholder="항목 이름" />
+      <select id="category">
+        <option value="">카테고리 선택</option>
+        <option value="급여">💼 급여</option>
+        <option value="부업">🛠 부업</option>
+        <option value="이자/배당">📈 이자/배당</option>
+        <option value="기타수입">💰 기타수입</option>
+        <option value="식비">🍽 식비</option>
+        <option value="교통">🚌 교통</option>
+        <option value="쇼핑">🛍 쇼핑</option>
+        <option value="의료">💊 의료</option>
+        <option value="문화/여가">🎬 문화/여가</option>
+        <option value="교육">📚 교육</option>
+        <option value="통신">📱 통신</option>
+        <option value="공과금">🏠 공과금</option>
+        <option value="저축/투자">💹 저축/투자</option>
+        <option value="기타지출">📦 기타지출</option>
+      </select>
+      <input type="number" id="amount" placeholder="금액 (원)" min="0" class="full" />
+      <textarea id="memo" class="full" placeholder="메모 (선택)"></textarea>
+    </div>
+    <button class="btn-add" onclick="addEntry()">+ 추가하기</button>
+  </div>
+
+  <!-- List -->
+  <div class="list-card panel">
+    <div class="list-header">
+      <h2>✦ 내역</h2>
+      <div class="filter-tabs">
+        <button class="tab active" onclick="setFilter('all', this)">전체</button>
+        <button class="tab" onclick="setFilter('income', this)">수입</button>
+        <button class="tab" onclick="setFilter('expense', this)">지출</button>
+      </div>
+    </div>
+    <div id="entry-list"></div>
+  </div>
+</div>
+
+<script>
+  const STORE_KEY = 'ggm_entries';
+  let entries = JSON.parse(localStorage.getItem(STORE_KEY) || '[]');
+  let filterType = 'all';
+  let showAllMonths = false;
+
+  const fmt = n => '₩' + Number(n).toLocaleString('ko-KR');
+
+  const ICONS = {
+    income:'💵', expense:'💸',
+    급여:'💼', 부업:'🛠', '이자/배당':'📈', 기타수입:'💰',
+    식비:'🍽', 교통:'🚌', 쇼핑:'🛍', 의료:'💊', '문화/여가':'🎬',
+    교육:'📚', 통신:'📱', 공과금:'🏠', '저축/투자':'💹', 기타지출:'📦'
+  };
+
+  function icon(e) { return ICONS[e.category] || ICONS[e.type]; }
+
+  const today = new Date();
+  const toDateStr  = d => d.toISOString().slice(0,10);
+  const toMonthStr = d => d.toISOString().slice(0,7);
+  document.getElementById('date').value         = toDateStr(today);
+  document.getElementById('month-filter').value = toMonthStr(today);
+
+  function currentMonth() { return document.getElementById('month-filter').value; }
+
+  function toggleAllMonths() {
+    showAllMonths = !showAllMonths;
+    document.getElementById('btn-all-months').textContent = showAllMonths ? '월별 보기' : '전체 보기';
+    render();
+  }
+
+  document.getElementById('month-filter').addEventListener('change', () => {
+    showAllMonths = false;
+    document.getElementById('btn-all-months').textContent = '전체 보기';
+    render();
+  });
+
+  function visibleEntries() {
+    return entries.filter(e => {
+      const monthOk = showAllMonths || e.date.startsWith(currentMonth());
+      const typeOk  = filterType === 'all' || e.type === filterType;
+      return monthOk && typeOk;
+    }).sort((a,b) => b.date.localeCompare(a.date));
+  }
+
+  function render() {
+    const list    = visibleEntries();
+    const income  = list.filter(e=>e.type==='income').reduce((s,e)=>s+e.amount, 0);
+    const expense = list.filter(e=>e.type==='expense').reduce((s,e)=>s+e.amount, 0);
+
+    document.getElementById('total-income').textContent  = fmt(income);
+    document.getElementById('total-expense').textContent = fmt(expense);
+
+    const bal  = document.getElementById('total-balance');
+    const diff = income - expense;
+    bal.textContent = fmt(diff);
+    bal.style.color      = diff < 0 ? 'var(--expense)' : 'var(--accent)';
+    bal.style.textShadow = diff < 0
+      ? '0 0 16px rgba(248,113,113,0.6)'
+      : '0 0 16px rgba(129,140,248,0.6)';
+
+    const el = document.getElementById('entry-list');
+    if (!list.length) {
+      el.innerHTML = '<div class="empty">내역이 없습니다 ✦</div>';
+      return;
+    }
+
+    el.innerHTML = list.map(e => `
+      <div class="entry ${e.type}-row">
+        <div class="entry-icon ${e.type}">${icon(e)}</div>
+        <div class="entry-info">
+          <div class="title">${esc(e.title)}${e.category ? `<span class="chip">${esc(e.category)}</span>` : ''}</div>
+          <div class="meta">${e.date}${e.memo ? ' · ' + esc(e.memo) : ''}</div>
+        </div>
+        <div class="entry-amount ${e.type}">${e.type==='income'?'+':'-'}${fmt(e.amount)}</div>
+        <button class="btn-del" onclick="deleteEntry('${e.id}')" title="삭제">✕</button>
+      </div>
+    `).join('');
+  }
+
+  function esc(s) {
+    return String(s)
+      .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+      .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+  }
+
+  function setFilter(type, btn) {
+    filterType = type;
+    document.querySelectorAll('.filter-tabs .tab').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    render();
+  }
+
+  function addEntry() {
+    const type     = document.getElementById('type').value;
+    const date     = document.getElementById('date').value;
+    const title    = document.getElementById('title').value.trim();
+    const category = document.getElementById('category').value;
+    const amount   = parseFloat(document.getElementById('amount').value);
+    const memo     = document.getElementById('memo').value.trim();
+
+    if (!date)              { alert('날짜를 선택하세요.');       return; }
+    if (!title)             { alert('항목 이름을 입력하세요.');  return; }
+    if (!amount || amount<=0){ alert('금액을 올바르게 입력하세요.'); return; }
+
+    entries.push({ id: Date.now().toString(), type, date, title, category, amount, memo });
+    save();
+
+    document.getElementById('title').value    = '';
+    document.getElementById('amount').value   = '';
+    document.getElementById('memo').value     = '';
+    document.getElementById('category').value = '';
+
+    if (!showAllMonths) document.getElementById('month-filter').value = date.slice(0,7);
+    render();
+  }
+
+  function deleteEntry(id) {
+    if (!confirm('이 내역을 삭제하시겠습니까?')) return;
+    entries = entries.filter(e => e.id !== id);
+    save();
+    render();
+  }
+
+  function save() { localStorage.setItem(STORE_KEY, JSON.stringify(entries)); }
+
+  /* summary card 3-D tilt on mouse move */
+  document.querySelectorAll('.s-card').forEach(card => {
+    card.addEventListener('mousemove', e => {
+      const r = card.getBoundingClientRect();
+      const x = (e.clientX - r.left) / r.width  - 0.5;
+      const y = (e.clientY - r.top)  / r.height - 0.5;
+      card.style.transform = `perspective(600px) rotateY(${x*14}deg) rotateX(${-y*14}deg) translateY(-4px) scale(1.04)`;
+    });
+    card.addEventListener('mouseleave', () => {
+      card.style.transform = '';
+    });
+  });
+
+  render();
+</script>
+</body>
+</html>
