@@ -5,6 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>가계부</title>
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -401,6 +402,75 @@
       h1 { font-size: 1.55rem; }
     }
 
+    /* ── Chart modal ── */
+    .chart-overlay {
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.55);
+      backdrop-filter: blur(6px);
+      -webkit-backdrop-filter: blur(6px);
+      z-index: 40;
+      display: none;
+      animation: fade-in 0.2s ease;
+    }
+    .chart-overlay.open { display: block; }
+
+    @keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+    @keyframes slide-up {
+      from { opacity: 0; transform: translate(-50%, calc(-50% + 24px)); }
+      to   { opacity: 1; transform: translate(-50%, -50%); }
+    }
+
+    .chart-modal {
+      position: fixed;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      width: min(720px, calc(100vw - 32px));
+      max-height: 85vh;
+      overflow-y: auto;
+      z-index: 41;
+      display: none;
+      padding: 24px;
+    }
+    .chart-modal.open {
+      display: block;
+      animation: slide-up 0.25s cubic-bezier(.22,.68,0,1.2) forwards;
+    }
+
+    .chart-modal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 18px;
+    }
+    .chart-modal-header h2 {
+      font-size: 0.85rem;
+      font-weight: 800;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+      color: var(--sub);
+    }
+
+    .btn-close-chart {
+      background: rgba(255,255,255,0.08);
+      border: 1px solid rgba(255,255,255,0.14);
+      border-radius: 8px;
+      color: var(--sub);
+      font-size: 0.9rem;
+      width: 32px; height: 32px;
+      cursor: pointer;
+      transition: all 0.15s;
+      display: flex; align-items: center; justify-content: center;
+    }
+    .btn-close-chart:hover { background: rgba(248,113,113,0.15); color: var(--expense); border-color: rgba(248,113,113,0.3); }
+
+    .chart-wrap {
+      position: relative;
+      width: 100%;
+      max-height: 380px;
+    }
+
     /* ── Income bubble (per-entry, fixed) ── */
     @keyframes bubble-in {
       from { opacity: 0; transform: translate(calc(-100% - 12px), -50%) scale(0.7); }
@@ -448,6 +518,25 @@
 </head>
 <body>
 
+<!-- chart overlay & modal -->
+<div class="chart-overlay" id="chart-overlay" onclick="toggleChart()"></div>
+<div class="chart-modal panel" id="chart-modal">
+  <div class="chart-modal-header">
+    <h2>✦ 지출·수입 분석</h2>
+    <div style="display:flex;gap:8px;align-items:center;">
+      <div class="filter-tabs">
+        <button class="tab active" data-ctype="monthly" onclick="switchChart('monthly',this)">월별 추이</button>
+        <button class="tab" data-ctype="category" onclick="switchChart('category',this)">카테고리</button>
+        <button class="tab" data-ctype="balance" onclick="switchChart('balance',this)">잔액 추이</button>
+      </div>
+      <button class="btn-close-chart" onclick="toggleChart()">✕</button>
+    </div>
+  </div>
+  <div class="chart-wrap">
+    <canvas id="main-chart"></canvas>
+  </div>
+</div>
+
 <!-- background orbs -->
 <div class="orb orb-1"></div>
 <div class="orb orb-2"></div>
@@ -480,6 +569,7 @@
     <label>기간</label>
     <input type="month" id="month-filter" />
     <button class="tab" id="btn-all-months" onclick="toggleAllMonths()">전체 보기</button>
+    <button class="tab" onclick="toggleChart()">📊 그래프</button>
   </div>
 
   <!-- Form -->
@@ -679,6 +769,141 @@
 
   window.addEventListener('scroll', updateBubblePositions);
   window.addEventListener('resize', updateBubblePositions);
+
+  /* ── Chart ── */
+  let chartInstance = null;
+  let currentChartType = 'monthly';
+
+  function toggleChart() {
+    const modal   = document.getElementById('chart-modal');
+    const overlay = document.getElementById('chart-overlay');
+    const isOpen  = modal.classList.contains('open');
+    if (isOpen) {
+      modal.classList.remove('open');
+      overlay.classList.remove('open');
+      if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+    } else {
+      modal.classList.add('open');
+      overlay.classList.add('open');
+      renderChart(currentChartType);
+    }
+  }
+
+  function switchChart(type, btn) {
+    currentChartType = type;
+    document.querySelectorAll('[data-ctype]').forEach(t => t.classList.remove('active'));
+    btn.classList.add('active');
+    renderChart(type);
+  }
+
+  function renderChart(type) {
+    if (chartInstance) { chartInstance.destroy(); chartInstance = null; }
+    const ctx = document.getElementById('main-chart').getContext('2d');
+    const gridColor  = 'rgba(255,255,255,0.07)';
+    const tickColor  = '#94a3b8';
+
+    if (type === 'monthly') {
+      const { labels, income, expense } = getMonthlyData();
+      chartInstance = new Chart(ctx, {
+        type: 'bar',
+        data: {
+          labels,
+          datasets: [
+            { label: '수입', data: income,  backgroundColor: 'rgba(74,222,128,0.75)', borderColor: '#4ade80', borderWidth: 1, borderRadius: 6 },
+            { label: '지출', data: expense, backgroundColor: 'rgba(248,113,113,0.75)', borderColor: '#f87171', borderWidth: 1, borderRadius: 6 }
+          ]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { labels: { color: '#f1f5f9', font: { size: 12 } } } },
+          scales: {
+            x: { ticks: { color: tickColor }, grid: { color: gridColor } },
+            y: { ticks: { color: tickColor, callback: v => '₩' + Number(v).toLocaleString('ko-KR') }, grid: { color: gridColor } }
+          }
+        }
+      });
+
+    } else if (type === 'category') {
+      const { labels, data } = getCategoryData();
+      const COLORS = ['#6366f1','#ec4899','#f59e0b','#10b981','#06b6d4','#8b5cf6','#f87171','#34d399','#60a5fa','#fbbf24','#a78bfa','#fb923c'];
+      chartInstance = new Chart(ctx, {
+        type: 'doughnut',
+        data: {
+          labels,
+          datasets: [{ data, backgroundColor: COLORS.slice(0, labels.length), borderWidth: 0, hoverOffset: 10 }]
+        },
+        options: {
+          responsive: true,
+          plugins: {
+            legend: { position: 'right', labels: { color: '#f1f5f9', padding: 14, font: { size: 12 } } },
+            tooltip: { callbacks: { label: c => ` ${c.label}: ₩${Number(c.parsed).toLocaleString('ko-KR')}` } }
+          }
+        }
+      });
+
+    } else {
+      const { labels, balance } = getBalanceData();
+      chartInstance = new Chart(ctx, {
+        type: 'line',
+        data: {
+          labels,
+          datasets: [{
+            label: '잔액',
+            data: balance,
+            borderColor: '#818cf8',
+            backgroundColor: 'rgba(129,140,248,0.15)',
+            borderWidth: 2,
+            pointBackgroundColor: '#818cf8',
+            pointRadius: 4,
+            fill: true,
+            tension: 0.35
+          }]
+        },
+        options: {
+          responsive: true,
+          plugins: { legend: { labels: { color: '#f1f5f9', font: { size: 12 } } } },
+          scales: {
+            x: { ticks: { color: tickColor }, grid: { color: gridColor } },
+            y: { ticks: { color: tickColor, callback: v => '₩' + Number(v).toLocaleString('ko-KR') }, grid: { color: gridColor } }
+          }
+        }
+      });
+    }
+  }
+
+  function getMonthlyData() {
+    const months = {};
+    entries.forEach(e => {
+      const m = e.date.slice(0, 7);
+      if (!months[m]) months[m] = { income: 0, expense: 0 };
+      months[m][e.type] += Number(e.amount);
+    });
+    const labels = Object.keys(months).sort();
+    return { labels, income: labels.map(m => months[m].income), expense: labels.map(m => months[m].expense) };
+  }
+
+  function getCategoryData() {
+    const cats = {};
+    entries.filter(e => e.type === 'expense').forEach(e => {
+      const c = e.category || '기타';
+      cats[c] = (cats[c] || 0) + Number(e.amount);
+    });
+    const sorted = Object.entries(cats).sort((a, b) => b[1] - a[1]);
+    return { labels: sorted.map(x => x[0]), data: sorted.map(x => x[1]) };
+  }
+
+  function getBalanceData() {
+    const months = {};
+    entries.forEach(e => {
+      const m = e.date.slice(0, 7);
+      if (!months[m]) months[m] = 0;
+      months[m] += e.type === 'income' ? Number(e.amount) : -Number(e.amount);
+    });
+    const labels = Object.keys(months).sort();
+    let cum = 0;
+    const balance = labels.map(m => { cum += months[m]; return cum; });
+    return { labels, balance };
+  }
 
   function esc(s) {
     return String(s)
