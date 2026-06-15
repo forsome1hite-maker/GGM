@@ -402,6 +402,43 @@
       h1 { font-size: 1.55rem; }
     }
 
+    /* ── Music button ── */
+    .btn-music {
+      position: fixed;
+      bottom: 24px;
+      right: 24px;
+      width: 48px;
+      height: 48px;
+      border-radius: 50%;
+      border: 1px solid rgba(255,255,255,0.18);
+      background: rgba(255,255,255,0.08);
+      backdrop-filter: blur(12px);
+      -webkit-backdrop-filter: blur(12px);
+      color: var(--text);
+      font-size: 1.3rem;
+      cursor: pointer;
+      z-index: 50;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.3), 0 1px 0 rgba(255,255,255,0.1) inset;
+      transition: transform 0.2s, box-shadow 0.2s, background 0.2s;
+    }
+    .btn-music:hover {
+      transform: scale(1.1);
+      background: rgba(129,140,248,0.25);
+      box-shadow: 0 6px 24px rgba(129,140,248,0.35), 0 1px 0 rgba(255,255,255,0.12) inset;
+    }
+    .btn-music.playing {
+      background: rgba(129,140,248,0.22);
+      border-color: rgba(129,140,248,0.45);
+      animation: pulse-ring 2s ease-in-out infinite;
+    }
+    @keyframes pulse-ring {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(129,140,248,0.4), 0 4px 20px rgba(0,0,0,0.3); }
+      50%       { box-shadow: 0 0 0 8px rgba(129,140,248,0), 0 4px 20px rgba(0,0,0,0.3); }
+    }
+
     /* ── Chart modal ── */
     .chart-overlay {
       position: fixed;
@@ -517,6 +554,10 @@
   </style>
 </head>
 <body>
+
+<!-- background music -->
+<audio id="bg-music" src="today.mp3" loop></audio>
+<button class="btn-music" id="btn-music" onclick="toggleMusic()" title="음악 켜기/끄기">🎵</button>
 
 <!-- chart overlay & modal -->
 <div class="chart-overlay" id="chart-overlay" onclick="toggleChart()"></div>
@@ -977,6 +1018,28 @@
     });
     card.addEventListener('mouseleave', () => { card.style.transform = ''; });
   });
+
+  /* ── Music ── */
+  const music  = document.getElementById('bg-music');
+  const btnMusic = document.getElementById('btn-music');
+
+  function toggleMusic() {
+    if (music.paused) {
+      music.play();
+      btnMusic.textContent = '🔊';
+      btnMusic.classList.add('playing');
+    } else {
+      music.pause();
+      btnMusic.textContent = '🔇';
+      btnMusic.classList.remove('playing');
+    }
+  }
+
+  // 자동재생 (브라우저 정책으로 실패 시 조용히 무시)
+  music.play().then(() => {
+    btnMusic.textContent = '🔊';
+    btnMusic.classList.add('playing');
+  }).catch(() => {});
 
   loadEntries();
 </script>
