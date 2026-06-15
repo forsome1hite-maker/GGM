@@ -4,6 +4,7 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>가계부</title>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
   <style>
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
 
@@ -464,8 +465,11 @@
 </div>
 
 <script>
-  const STORE_KEY = 'ggm_entries';
-  let entries = JSON.parse(localStorage.getItem(STORE_KEY) || '[]');
+  const SUPABASE_URL = 'https://qlunksdvohmqglmjefdx.supabase.co';
+  const SUPABASE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InFsdW5rc2R2b2htcWdsbWplZmR4Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODE0OTQwNjAsImV4cCI6MjA5NzA3MDA2MH0.f9Tbw5blym8eLreNo6qMg9_I7m4mI20AAyhBReqVGp8';
+  const db = supabase.createClient(SUPABASE_URL, SUPABASE_KEY);
+
+  let entries = [];
   let filterType = 'all';
   let showAllMonths = false;
 
@@ -508,10 +512,15 @@
     }).sort((a,b) => b.date.localeCompare(a.date));
   }
 
+  function setLoading(on) {
+    document.querySelector('.btn-add').disabled = on;
+    document.querySelector('.btn-add').textContent = on ? '처리 중…' : '+ 추가하기';
+  }
+
   function render() {
     const list    = visibleEntries();
-    const income  = list.filter(e=>e.type==='income').reduce((s,e)=>s+e.amount, 0);
-    const expense = list.filter(e=>e.type==='expense').reduce((s,e)=>s+e.amount, 0);
+    const income  = list.filter(e=>e.type==='income').reduce((s,e)=>s+Number(e.amount), 0);
+    const expense = list.filter(e=>e.type==='expense').reduce((s,e)=>s+Number(e.amount), 0);
 
     document.getElementById('total-income').textContent  = fmt(income);
     document.getElementById('total-expense').textContent = fmt(expense);
@@ -556,7 +565,16 @@
     render();
   }
 
-  function addEntry() {
+  async function loadEntries() {
+    const el = document.getElementById('entry-list');
+    el.innerHTML = '<div class="empty">불러오는 중…</div>';
+    const { data, error } = await db.from('entries').select('*').order('date', { ascending: false });
+    if (error) { el.innerHTML = '<div class="empty">불러오기 실패 ✕</div>'; console.error(error); return; }
+    entries = data;
+    render();
+  }
+
+  async function addEntry() {
     const type     = document.getElementById('type').value;
     const date     = document.getElementById('date').value;
     const title    = document.getElementById('title').value.trim();
@@ -564,12 +582,20 @@
     const amount   = parseFloat(document.getElementById('amount').value);
     const memo     = document.getElementById('memo').value.trim();
 
-    if (!date)              { alert('날짜를 선택하세요.');       return; }
-    if (!title)             { alert('항목 이름을 입력하세요.');  return; }
+    if (!date)               { alert('날짜를 선택하세요.');          return; }
+    if (!title)              { alert('항목 이름을 입력하세요.');     return; }
     if (!amount || amount<=0){ alert('금액을 올바르게 입력하세요.'); return; }
 
-    entries.push({ id: Date.now().toString(), type, date, title, category, amount, memo });
-    save();
+    setLoading(true);
+    const { data, error } = await db.from('entries')
+      .insert([{ type, date, title, category: category || null, amount, memo: memo || null }])
+      .select()
+      .single();
+    setLoading(false);
+
+    if (error) { alert('추가 실패: ' + error.message); return; }
+
+    entries.unshift(data);
 
     document.getElementById('title').value    = '';
     document.getElementById('amount').value   = '';
@@ -580,14 +606,13 @@
     render();
   }
 
-  function deleteEntry(id) {
+  async function deleteEntry(id) {
     if (!confirm('이 내역을 삭제하시겠습니까?')) return;
+    const { error } = await db.from('entries').delete().eq('id', id);
+    if (error) { alert('삭제 실패: ' + error.message); return; }
     entries = entries.filter(e => e.id !== id);
-    save();
     render();
   }
-
-  function save() { localStorage.setItem(STORE_KEY, JSON.stringify(entries)); }
 
   /* summary card 3-D tilt on mouse move */
   document.querySelectorAll('.s-card').forEach(card => {
@@ -597,12 +622,10 @@
       const y = (e.clientY - r.top)  / r.height - 0.5;
       card.style.transform = `perspective(600px) rotateY(${x*14}deg) rotateX(${-y*14}deg) translateY(-4px) scale(1.04)`;
     });
-    card.addEventListener('mouseleave', () => {
-      card.style.transform = '';
-    });
+    card.addEventListener('mouseleave', () => { card.style.transform = ''; });
   });
 
-  render();
+  loadEntries();
 </script>
 </body>
 </html>
